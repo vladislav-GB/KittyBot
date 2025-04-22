@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from telebot import TeleBot, types
 from apscheduler.schedulers.background import BackgroundScheduler
 
-
 load_dotenv()
 secret_token = os.getenv('TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -37,14 +36,25 @@ cat_memes = [
 
 def get_cat_image():
     """Fetch a random cat image URL from The Cat API, excluding blacklisted breeds."""
-    breeds = requests.get('https://api.thecatapi.com/v1/breeds').json()
-    allowed_breeds = [
-        breed['id'] for breed in breeds
-        if breed['id'] not in BREED_BLACKLIST
-    ]
-    breed_id = random.choice(allowed_breeds)
-    response = requests.get(CAT_API_URL, params={'breed_ids': breed_id}).json()
-    return response[0].get('url')
+    try:
+        res = requests.get('https://api.thecatapi.com/v1/breeds', timeout=5)
+        res.raise_for_status()
+        breeds = res.json()
+
+        allowed_breeds = [b['id'] for b in breeds if b['id'] not in BREED_BLACKLIST]
+        if not allowed_breeds:
+            raise ValueError("No allowed breeds available.")
+
+        breed_id = random.choice(allowed_breeds)
+        image_response = requests.get(CAT_API_URL, params={'breed_ids': breed_id}, timeout=5)
+        image_response.raise_for_status()
+        data = image_response.json()
+
+        return data[0].get('url') if data else CATAAS_GIF_URL
+
+    except (requests.RequestException, ValueError, IndexError) as e:
+        print(f"Ошибка при получении изображения кота: {e}")
+        return CATAAS_GIF_URL  # fallback to a gif if error
 
 
 def get_cat_gif():
@@ -55,19 +65,12 @@ def get_cat_gif():
 def send_scheduled_cat():
     """Send scheduled evening cat image to the predefined chat."""
     bot.send_photo(CHAT_ID, get_cat_image())
-    bot.send_message(
-        CHAT_ID,
-        text='Твой вечерний котик перед сном пришел к тебе!🐈'
-    )
+    bot.send_message(CHAT_ID, 'Твой вечерний котик перед сном пришел к тебе!🐈')
 
 
 def send_morning_cat():
     """Send scheduled morning cat GIF to the predefined chat."""
-    bot.send_animation(
-        CHAT_ID,
-        get_cat_gif(),
-        caption='Утренний котик для чубзика!🐾'
-    )
+    bot.send_animation(CHAT_ID, get_cat_gif(), caption='Утренний котик для чубзика!🐾')
 
 
 scheduler = BackgroundScheduler()
@@ -81,10 +84,10 @@ def wake_up(message):
     """Handle /start command and send welcome message with first cat."""
     name = message.chat.first_name
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    button_newcat = types.KeyboardButton('Еще котик!')
-    button_gif = types.KeyboardButton('КотоМем')
-    keyboard.add(button_newcat, button_gif)
-
+    keyboard.add(
+        types.KeyboardButton('Еще котик!'),
+        types.KeyboardButton('КотоМем')
+    )
     bot.send_message(
         chat_id=message.chat.id,
         text=f'Привет, {name}! Посмотри, какого котика я тебе нашёл)',
@@ -103,19 +106,13 @@ def new_cat(message):
 @bot.message_handler(func=lambda message: message.text == 'КотоМем')
 def send_gif(message):
     """Send cat GIF when 'КотоМем' button is pressed."""
-    bot.send_animation(
-        message.chat.id,
-        get_cat_gif(),
-        caption=random.choice(cat_memes)
-    )
+    bot.send_animation(message.chat.id, get_cat_gif(), caption=random.choice(cat_memes))
 
 
 @bot.message_handler(content_types=['text'])
 def say_hi(message):
     """Handle any text message with instructions."""
-    bot.send_message(
-        chat_id=message.chat.id,
-        text='Привет, я KittyBot! Используй кнопки ниже чтобы получать котиков!')
+    bot.send_message(message.chat.id, 'Привет, я KittyBot! Используй кнопки ниже чтобы получать котиков!')
 
 
 bot.polling()
