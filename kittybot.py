@@ -28,36 +28,57 @@ cat_phrases = [
     "Лови мурлыку! 🐾"
 ]
 
+cat_memes = [
+    "Лови котомем! 😹",
+    "Пушистый дурында! 😼",
+    "Котомем! 🐈"
+]
+
 
 def get_cat_image():
+    """Fetch a random cat image URL from The Cat API, excluding blacklisted breeds."""
     breeds = requests.get('https://api.thecatapi.com/v1/breeds').json()
-    allowed_breeds = [breed['id'] for breed in breeds if breed['id'] not in BREED_BLACKLIST]
+    allowed_breeds = [
+        breed['id'] for breed in breeds
+        if breed['id'] not in BREED_BLACKLIST
+    ]
     breed_id = random.choice(allowed_breeds)
     response = requests.get(CAT_API_URL, params={'breed_ids': breed_id}).json()
     return response[0].get('url')
 
 
 def get_cat_gif():
-    return f'{CATAAS_GIF_URL}?{random.randint(0, 999999)}'  # Чтобы не кешировался
+    """Fetch a random cat GIF URL from CATAAS with cache-busting parameter."""
+    return f'{CATAAS_GIF_URL}?{random.randint(0, 999999)}'
 
 
 def send_scheduled_cat():
+    """Send scheduled evening cat image to the predefined chat."""
     bot.send_photo(CHAT_ID, get_cat_image())
-    bot.send_message(CHAT_ID, text='Твой вечерний котик перед сном пришел к тебе!')
+    bot.send_message(
+        CHAT_ID,
+        text='Твой вечерний котик перед сном пришел к тебе!🐈'
+    )
 
 
 def send_morning_cat():
-    bot.send_animation(CHAT_ID, get_cat_gif(), caption='Утренний котик для чубзика!')
+    """Send scheduled morning cat GIF to the predefined chat."""
+    bot.send_animation(
+        CHAT_ID,
+        get_cat_gif(),
+        caption='Утренний котик для чубзика!🐾'
+    )
 
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(send_scheduled_cat, 'cron', hour=22, minute=30)
+scheduler.add_job(send_scheduled_cat, 'cron', hour=22, minute=0)
 scheduler.add_job(send_morning_cat, 'cron', hour=8, minute=0)
 scheduler.start()
 
 
 @bot.message_handler(commands=['start'])
 def wake_up(message):
+    """Handle /start command and send welcome message with first cat."""
     name = message.chat.first_name
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     button_newcat = types.KeyboardButton('Еще котик!')
@@ -74,18 +95,27 @@ def wake_up(message):
 
 @bot.message_handler(func=lambda message: message.text == 'Еще котик!')
 def new_cat(message):
+    """Send new cat image when 'Еще котик!' button is pressed."""
     bot.send_photo(message.chat.id, get_cat_image())
     bot.send_message(message.chat.id, random.choice(cat_phrases))
 
 
 @bot.message_handler(func=lambda message: message.text == 'КотоМем')
 def send_gif(message):
-    bot.send_animation(message.chat.id, get_cat_gif(), caption="Лови котомем! 😹")
+    """Send cat GIF when 'КотоМем' button is pressed."""
+    bot.send_animation(
+        message.chat.id,
+        get_cat_gif(),
+        caption=random.choice(cat_memes)
+    )
 
 
 @bot.message_handler(content_types=['text'])
 def say_hi(message):
-    bot.send_message(chat_id=message.chat.id, text='Привет, я KittyBot! Используй кнопки ниже чтобы получать котиков!')
+    """Handle any text message with instructions."""
+    bot.send_message(
+        chat_id=message.chat.id,
+        text='Привет, я KittyBot! Используй кнопки ниже чтобы получать котиков!')
 
 
 bot.polling()
